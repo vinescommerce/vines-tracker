@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon PPC Intelligence Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: #1f2d45;
+    --accent: #f97316;
+    --accent2: #3b82f6;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #f1f5f9;
+    --muted: #64748b;
+    --muted2: #94a3b8;
+    --card-glow: rgba(249,115,22,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 100;
+    padding: 0;
+  }
+
+  .logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .nav-section { padding: 16px 12px 8px; }
+  .nav-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 8px;
+    margin-bottom: 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted2);
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(249,115,22,0.12); color: var(--accent); }
+  .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+  .upload-section {
+    margin-top: auto;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .upload-card {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .upload-card:hover { border-color: var(--accent); background: rgba(249,115,22,0.06); }
+  .upload-card.loaded { border-color: var(--green); border-style: solid; }
+  .upload-card input[type=file] { display: none; }
+  .upload-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .upload-name {
+    font-size: 11px;
+    color: var(--muted2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .upload-status {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 13px;
+  }
+
+  .portfolio-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    margin-bottom: 10px;
+    outline: none;
+  }
+  .portfolio-select:focus { border-color: var(--accent); }
+
+  .run-btn {
+    width: 100%;
+    padding: 11px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+  .run-btn:hover { background: #ea6c0a; transform: translateY(-1px); }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── MAIN ── */
+  .main {
+    margin-left: 260px;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .page-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .file-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--muted2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .file-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  .content { padding: 28px 32px; }
+
+  /* ── STATS GRID ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .stats-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .stat-card:hover { border-color: var(--accent); }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.orange { color: var(--accent); }
+  .stat-value.blue { color: var(--accent2); }
+
+  /* ── SECTION ── */
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .table-header-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  thead th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr {
+    border-bottom: 1px solid rgba(31,45,69,0.5);
+    transition: background 0.12s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr:last-child { border-bottom: none; }
+  td {
+    padding: 10px 14px;
+    color: var(--muted2);
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  td:first-child { color: var(--text); font-weight: 500; }
+  td.green { color: var(--green); font-weight: 600; }
+  td.red { color: var(--red); }
+  td.orange { color: var(--accent); font-weight: 600; }
+
+  /* ── ACOS BADGE ── */
+  .acos-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .acos-good { background: rgba(16,185,129,0.15); color: var(--green); }
+  .acos-mid  { background: rgba(245,158,11,0.15);  color: var(--yellow); }
+  .acos-bad  { background: rgba(239,68,68,0.15);   color: var(--red); }
+
+  /* ── DOWNLOAD BTNS ── */
+  .dl-row { display: flex; gap: 10px; margin-bottom: 28px; }
+  .dl-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .dl-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(249,115,22,0.06); }
+  .dl-btn .icon { font-size: 15px; }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    gap: 12px;
+  }
+  .empty-icon { font-size: 52px; opacity: 0.3; }
+  .empty-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 16px;
+    color: var(--muted2);
+  }
+  .empty-sub { font-size: 13px; color: var(--muted); max-width: 300px; line-height: 1.6; }
+
+  /* ── COMBINED TABLE (full tracker) ── */
+  .tracker-table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: auto;
+    max-height: 480px;
+    margin-bottom: 28px;
+  }
+  .tracker-table-wrap table { min-width: 1600px; }
+
+  /* ── LOADING ── */
+  .loading {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(10,14,26,0.85);
+    z-index: 999;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px;
+  }
+  .loading.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'Space Mono', monospace; font-size: 13px; color: var(--muted2); }
+
+  /* ── SEARCH ── */
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    width: 220px;
+  }
+  .search-input:focus { border-color: var(--accent); }
+
+  .tag { font-size: 9px; background: rgba(249,115,22,0.15); color: var(--accent); padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: 0.05em; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Processing reports...</div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-name">⚡ PPC INTEL</div>
+    <div class="logo-sub">Amazon Seller Tools</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Report Analysis</div>
+    <div class="nav-item active" onclick="showTab('overview')"><span class="nav-icon">▦</span> Overview</div>
+    <div class="nav-item" onclick="showTab('topterms')"><span class="nav-icon">↑</span> Top Search Terms</div>
+    <div class="nav-item" onclick="showTab('tracker')"><span class="nav-icon">⊞</span> Full Tracker</div>
+  </div>
+
+  <div class="upload-section">
+    <div class="nav-label" style="padding:0;margin-bottom:10px;">Upload Reports</div>
+
+    <div class="upload-card" id="card-str" onclick="document.getElementById('inp-str').click()">
+      <input type="file" id="inp-str" accept=".xlsx,.csv" onchange="loadSTR(this)">
+      <span class="upload-label">Search Term Report</span>
+      <span class="upload-name" id="name-str">Click to upload .xlsx / .csv</span>
+      <span class="upload-status" id="status-str">📂</span>
+    </div>
+
+    <div class="upload-card" id="card-sqp" onclick="document.getElementById('inp-sqp').click()">
+      <input type="file" id="inp-sqp" accept=".csv" onchange="loadSQP(this)">
+      <span class="upload-label">SQP Report (CSV)</span>
+      <span class="upload-name" id="name-sqp">Click to upload .csv</span>
+      <span class="upload-status" id="status-sqp">📂</span>
+    </div>
+
+    <div class="upload-card" id="card-h10" onclick="document.getElementById('inp-h10').click()">
+      <input type="file" id="inp-h10" accept=".csv" onchange="loadH10(this)">
+      <span class="upload-label">Helium 10 Cerebro (CSV)</span>
+      <span class="upload-name" id="name-h10">Click to upload .csv</span>
+      <span class="upload-status" id="status-h10">📂</span>
+    </div>
+
+    <select class="portfolio-select" id="portfolio-sel">
+      <option value="">— All Portfolios —</option>
+    </select>
+
+    <button class="run-btn" id="run-btn" onclick="buildDashboard()" disabled>
+      ▶ GENERATE REPORT
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Overview</div>
+    <div class="file-badge" id="file-badge" style="display:none">
+      <span class="dot"></span>
+      <span id="badge-text">—</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- EMPTY STATE -->
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Upload Your Reports</div>
+      <div class="empty-sub">Upload Search Term Report, SQP, and Helium 10 Cerebro files to generate your dashboard.</div>
+    </div>
+
+    <!-- DASHBOARD (hidden until generated) -->
+    <div id="dashboard" style="display:none">
+
+      <!-- TAB: OVERVIEW -->
+      <div id="tab-overview">
+        <div class="stats-grid" id="stats-row1"></div>
+        <div class="stats-grid-2" id="stats-row2"></div>
+
+        <div class="dl-row">
+          <button class="dl-btn" onclick="downloadExcel()"><span class="icon">⬇</span> Download Full Tracker (.xlsx)</button>
+          <button class="dl-btn" onclick="downloadCSV()"><span class="icon">⬇</span> Download as CSV</button>
+        </div>
+
+        <div class="section-title">Top 10 Search Terms by Spend</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Search Term</th>
+              <th>Impressions</th>
+              <th>Clicks</th>
+              <th>Spend</th>
+              <th>Sales</th>
+              <th>Orders</th>
+              <th>ACoS</th>
+            </tr></thead>
+            <tbody id="top10-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: TOP TERMS -->
+      <div id="tab-topterms" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+          <input class="search-input" id="search-topterms" placeholder="Search keywords..." oninput="filterTopTerms()">
+          <span style="font-size:12px;color:var(--muted)" id="topterms-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>#</th>
+              <th>Search Term</th>
+              <th>Impressions</th>
+              <th>Clicks</th>
+              <th>CTR</th>
+              <th>Spend</th>
+              <th>CPC</th>
+              <th>Sales</th>
+              <th>ACoS</th>
+              <th>Orders</th>
+              <th>CVR</th>
+            </tr></thead>
+            <tbody id="topterms-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: FULL TRACKER -->
+      <div id="tab-tracker" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+          <input class="search-input" id="search-tracker" placeholder="Search keywords..." oninput="filterTracker()">
+          <span style="font-size:12px;color:var(--muted)" id="tracker-count"></span>
+          <button class="dl-btn" onclick="downloadExcel()" style="margin-left:auto"><span class="icon">⬇</span> Download Tracker</button>
+        </div>
+        <div class="tracker-table-wrap">
+          <table>
+            <thead><tr>
+              <th>Customer Search Terms</th>
+              <th>SQS</th><th>SQ VL</th>
+              <th>Market CTR</th><th>My CTR</th>
+              <th>Market CVR</th><th>My CVR</th>
+              <th>Imp Market</th><th>Brand Imp</th>
+              <th>Mkt Clicks</th><th>Brand Clicks</th>
+              <th>Purchase Total</th><th>Brand Purchase</th>
+              <th>Impression</th><th>Clicks</th><th>CTR</th>
+              <th>Ad Spent</th><th>CPC</th><th>Sales</th>
+              <th>ACoS</th><th>Orders</th><th>CVR</th>
+              <th>SV</th><th>K-Sale</th><th>CPR</th><th>Organic</th>
+            </tr></thead>
+            <tbody id="tracker-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let strData = null, sqpData = null, h10Data = null;
+let masterRows = [];
+let allTopTerms = [];
+
+// ── FILE LOADERS ───────────────────────────────────────────────────────────
+function setLoaded(id, name) {
+  document.getElementById('name-' + id).textContent = name;
+  document.getElementById('status-' + id).textContent = '✅';
+  document.getElementById('card-' + id).classList.add('loaded');
+  checkRunnable();
+}
+
+function loadSTR(inp) {
+  const file = inp.files[0]; if (!file) return;
+  showLoading();
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => {
+      strData = r.data;
+      populatePortfolios();
+      setLoaded('str', file.name);
+      hideLoading();
+    }});
+  } else {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      strData = XLSX.utils.sheet_to_json(ws, { defval: 0 });
+      populatePortfolios();
+      setLoaded('str', file.name);
+      hideLoading();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function loadSQP(inp) {
+  const file = inp.files[0]; if (!file) return;
+  showLoading();
+  // SQP Amazon reports have a metadata row before the real header row
+  // We skip the first row and use the second row as headers
+  Papa.parse(file, { header: false, skipEmptyLines: true, complete: r => {
+    const allRows = r.data;
+    // Find the header row: it contains 'Search Query' or 'Search Query Volume'
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(5, allRows.length); i++) {
+      if (allRows[i].some(c => typeof c === 'string' && c.includes('Search Query'))) {
+        headerIdx = i; break;
+      }
+    }
+    const headers = allRows[headerIdx].map(h => (h||'').trim());
+    const dataRows = allRows.slice(headerIdx + 1);
+    sqpData = dataRows.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+      return obj;
+    });
+    setLoaded('sqp', file.name);
+    hideLoading();
+  }});
+}
+
+function loadH10(inp) {
+  const file = inp.files[0]; if (!file) return;
+  showLoading();
+  Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => {
+    h10Data = r.data;
+    setLoaded('h10', file.name);
+    hideLoading();
+  }});
+}
+
+function populatePortfolios() {
+  if (!strData) return;
+  const portfolioKey = Object.keys(strData[0] || {}).find(k => k.toLowerCase().includes('portfolio'));
+  if (!portfolioKey) return;
+  const portfolios = [...new Set(strData.map(r => r[portfolioKey]).filter(Boolean))].sort();
+  const sel = document.getElementById('portfolio-sel');
+  sel.innerHTML = '<option value="">— All Portfolios —</option>';
+  portfolios.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+function checkRunnable() {
+  document.getElementById('run-btn').disabled = !strData;
+}
+
+// ── BUILD DASHBOARD ────────────────────────────────────────────────────────
+function buildDashboard() {
+  showLoading();
+  setTimeout(() => {
+    try {
+      _build();
+    } catch(e) {
+      console.error(e);
+      hideLoading();
+      alert('Error building dashboard: ' + e.message);
+    }
+  }, 50);
+}
+
+function _build() {
+  const portfolio = document.getElementById('portfolio-sel').value;
+
+  // ── STR aggregation ──
+  const portfolioKey = Object.keys(strData[0] || {}).find(k => k.toLowerCase().includes('portfolio')) || '';
+  const termKey = Object.keys(strData[0] || {}).find(k => k.toLowerCase().includes('customer search term') || (k.toLowerCase().includes('search term') && !k.toLowerCase().includes('report'))) || 'Customer Search Term';
+  const impKey  = Object.keys(strData[0] || {}).find(k => k.toLowerCase().trim() === 'impressions') || 'Impressions';
+  const clkKey  = Object.keys(strData[0] || {}).find(k => k.toLowerCase().trim() === 'clicks') || 'Clicks';
+  const spendKey= Object.keys(strData[0] || {}).find(k => k.toLowerCase().trim() === 'spend' || k.toLowerCase().includes('total spend') || (k.toLowerCase().includes('spend') && !k.toLowerCase().includes('roas'))) || 'Spend';
+  const salesKey= Object.keys(strData[0] || {}).find(k => k.toLowerCase().includes('7 day total sales') || k.toLowerCase().includes('total sales')) || '7 Day Total Sales ';
+  const ordKey  = Object.keys(strData[0] || {}).find(k => k.toLowerCase().includes('7 day total orders') || k.toLowerCase().includes('total orders')) || '7 Day Total Orders (#)';
+
+  let filtered = portfolio ? strData.filter(r => r[portfolioKey] === portfolio) : strData;
+
+  const strMap = {};
+  filtered.forEach(r => {
+    const kw = (r[termKey] || '').toLowerCase().trim();
+    if (!kw) return;
+    if (!strMap[kw]) strMap[kw] = { imp:0, clk:0, spend:0, sales:0, orders:0 };
+    strMap[kw].imp    += parseFloat(r[impKey]  || 0);
+    strMap[kw].clk    += parseFloat(r[clkKey]  || 0);
+    strMap[kw].spend  += parseFloat(r[spendKey]|| 0);
+    strMap[kw].sales  += parseFloat(r[salesKey]|| 0);
+    strMap[kw].orders += parseFloat(r[ordKey]  || 0);
+  });
+
+  // ── SQP map ──
+  const sqpMap = {};
+  if (sqpData) {
+    sqpData.forEach(r => {
+      const kw = (r['Search Query'] || '').toLowerCase().trim();
+      if (!kw) return;
+      sqpMap[kw] = r;
+    });
+  }
+
+  // ── H10 map ──
+  const h10Map = {};
+  if (h10Data) {
+    const kwKey = Object.keys(h10Data[0] || {}).find(k => k.toLowerCase().includes('keyword phrase')) || 'Keyword Phrase';
+    h10Data.forEach(r => {
+      const kw = (r[kwKey] || '').toLowerCase().trim();
+      if (!kw) return;
+      h10Map[kw] = r;
+    });
+  }
+
+  // ── Combine all keywords ──
+  const allKw = new Set([...Object.keys(strMap), ...Object.keys(sqpMap), ...Object.keys(h10Map)]);
+  masterRows = [];
+
+  allKw.forEach(kw => {
+    const s = sqpMap[kw] || {};
+    const h = h10Map[kw] || {};
+    const p = strMap[kw] || {};
+
+    const sqs   = parseFloat(s['Search Query Score'] || 0);
+    const sqvl  = parseFloat(s['Search Query Volume'] || 0);
+    const mktCtr = parseFloat(s['Clicks: Click Rate %'] || 0) / 100;
+    const myCtr  = (parseFloat(s['Clicks: Brand Count'] || 0)) / (parseFloat(s['Impressions: Total Count'] || 1) || 1);
+    const mktCvr = parseFloat(s['Purchases: Purchase Rate %'] || 0) / 100;
+    const myCvr  = (parseFloat(s['Purchases: Brand Count'] || 0)) / (parseFloat(s['Clicks: Brand Count'] || 1) || 1);
+    const impMkt  = parseFloat(s['Impressions: Total Count'] || 0);
+    const brandImp= parseFloat(s['Impressions: Brand Count'] || 0);
+    const mktClk  = parseFloat(s['Clicks: Total Count'] || 0);
+    const brandClk= parseFloat(s['Clicks: Brand Count'] || 0);
+    const purchTot= parseFloat(s['Purchases: Total Count'] || 0);
+    const brandPur= parseFloat(s['Purchases: Brand Count'] || 0);
+
+    const imp    = p.imp   || 0;
+    const clk    = p.clk   || 0;
+    const spend  = p.spend || 0;
+    const sales  = p.sales || 0;
+    const orders = p.orders|| 0;
+    const ctr    = imp > 0 ? clk / imp : 0;
+    const cpc    = clk > 0 ? spend / clk : 0;
+    const acos   = sales > 0 ? spend / sales : 0;
+    const cvr    = clk > 0 ? orders / clk : 0;
+
+    const svKey   = Object.keys(h).find(k => k.toLowerCase().includes('search volume') && !k.toLowerCase().includes('trend')) || 'Search Volume';
+    const ksKey   = Object.keys(h).find(k => k.toLowerCase().includes('keyword sales')) || 'Keyword Sales';
+    const cprKey  = Object.keys(h).find(k => k.toLowerCase().trim() === 'cpr') || 'CPR';
+    const orgKey  = Object.keys(h).find(k => k.toLowerCase().trim() === 'organic rank') || 'Organic Rank';
+
+    const sv  = parseFloat(h[svKey]  || 0) || 0;
+    const ks  = parseInt(h[ksKey]    || 0) || 0;
+    const cpr = parseFloat(h[cprKey] || 0) || 0;
+    const org = parseFloat(h[orgKey] || 0) || 0;
+
+    masterRows.push({ kw, sqs, sqvl, mktCtr, myCtr, mktCvr, myCvr,
+      impMkt, brandImp, mktClk, brandClk, purchTot, brandPur,
+      imp, clk, ctr, spend, cpc, sales, acos, orders, cvr,
+      sv, ks, cpr, org });
+  });
+
+  // ── Overview stats ──
+  const totImp   = masterRows.reduce((a,r) => a + r.imp, 0);
+  const totClk   = masterRows.reduce((a,r) => a + r.clk, 0);
+  const totSpend = masterRows.reduce((a,r) => a + r.spend, 0);
+  const totSales = masterRows.reduce((a,r) => a + r.sales, 0);
+  const totOrd   = masterRows.reduce((a,r) => a + r.orders, 0);
+  const totAcos  = totSales > 0 ? totSpend / totSales : 0;
+  const totRoas  = totSpend > 0 ? totSales / totSpend : 0;
+  const totCtr   = totImp > 0 ? totClk / totImp : 0;
+  const totCpc   = totClk > 0 ? totSpend / totClk : 0;
+  const totCvr   = totClk > 0 ? totOrd / totClk : 0;
+
+  document.getElementById('stats-row1').innerHTML = `
+    ${statCard('TOTAL SPEND', '$' + fmt(totSpend), '')}
+    ${statCard('TOTAL SALES', '$' + fmt(totSales), 'green')}
+    ${statCard('ACoS', pct(totAcos), totAcos < 0.3 ? 'green' : totAcos < 0.6 ? 'orange' : 'red')}
+    ${statCard('ROAS', totRoas.toFixed(2) + 'x', 'orange')}
+    ${statCard('ORDERS', totOrd.toLocaleString(), '')}
+  `;
+  document.getElementById('stats-row2').innerHTML = `
+    ${statCard('IMPRESSIONS', fmtBig(totImp), '')}
+    ${statCard('CLICKS', totClk.toLocaleString(), '')}
+    ${statCard('CTR', pct(totCtr), 'blue')}
+    ${statCard('AVG CPC', '$' + totCpc.toFixed(2), '')}
+    ${statCard('CONV. RATE', pct(totCvr), 'blue')}
+  `;
+
+  // Badge
+  document.getElementById('file-badge').style.display = 'flex';
+  document.getElementById('badge-text').textContent = `${masterRows.length.toLocaleString()} unique keywords · ${portfolio || 'All Portfolios'}`;
+
+  // ── Top 10 by spend ──
+  allTopTerms = [...masterRows].filter(r => r.spend > 0).sort((a,b) => b.spend - a.spend);
+  renderTop10();
+
+  // ── Top terms tab ──
+  renderTopTerms(allTopTerms);
+
+  // ── Tracker tab ──
+  renderTracker(masterRows);
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  hideLoading();
+}
+
+function statCard(label, value, cls) {
+  return `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${value}</div></div>`;
+}
+
+function renderTop10() {
+  const top10 = allTopTerms.slice(0, 10);
+  document.getElementById('top10-body').innerHTML = top10.map(r => `
+    <tr>
+      <td>${r.kw}</td>
+      <td>${r.imp.toLocaleString()}</td>
+      <td>${r.clk.toLocaleString()}</td>
+      <td>$${fmt(r.spend)}</td>
+      <td class="green">$${fmt(r.sales)}</td>
+      <td>${r.orders}</td>
+      <td>${acosBadge(r.acos)}</td>
+    </tr>`).join('');
+}
+
+function renderTopTerms(rows) {
+  document.getElementById('topterms-count').textContent = rows.length.toLocaleString() + ' terms';
+  document.getElementById('topterms-body').innerHTML = rows.slice(0,500).map((r,i) => `
+    <tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td>${r.kw}</td>
+      <td>${r.imp.toLocaleString()}</td>
+      <td>${r.clk.toLocaleString()}</td>
+      <td>${pct(r.ctr)}</td>
+      <td>$${fmt(r.spend)}</td>
+      <td>$${r.cpc.toFixed(2)}</td>
+      <td class="${r.sales>0?'green':''}">${r.sales>0?'$'+fmt(r.sales):'-'}</td>
+      <td>${r.acos > 0 ? acosBadge(r.acos) : '-'}</td>
+      <td>${r.orders}</td>
+      <td>${pct(r.cvr)}</td>
+    </tr>`).join('');
+}
+
+function renderTracker(rows) {
+  document.getElementById('tracker-count').textContent = rows.length.toLocaleString() + ' keywords';
+  document.getElementById('tracker-body').innerHTML = rows.slice(0,1000).map(r => `
+    <tr>
+      <td>${r.kw}</td>
+      <td>${r.sqs||'-'}</td>
+      <td>${r.sqvl?r.sqvl.toLocaleString():'-'}</td>
+      <td>${r.mktCtr>0?pct(r.mktCtr):'-'}</td>
+      <td>${r.myCtr>0?pct(r.myCtr):'-'}</td>
+      <td>${r.mktCvr>0?pct(r.mktCvr):'-'}</td>
+      <td>${r.myCvr>0?pct(r.myCvr):'-'}</td>
+      <td>${r.impMkt?r.impMkt.toLocaleString():'-'}</td>
+      <td>${r.brandImp?r.brandImp.toLocaleString():'-'}</td>
+      <td>${r.mktClk?r.mktClk.toLocaleString():'-'}</td>
+      <td>${r.brandClk?r.brandClk.toLocaleString():'-'}</td>
+      <td>${r.purchTot?r.purchTot.toLocaleString():'-'}</td>
+      <td>${r.brandPur?r.brandPur.toLocaleString():'-'}</td>
+      <td>${r.imp?r.imp.toLocaleString():'-'}</td>
+      <td>${r.clk?r.clk.toLocaleString():'-'}</td>
+      <td>${r.ctr>0?pct(r.ctr):'-'}</td>
+      <td>${r.spend>0?'$'+fmt(r.spend):'-'}</td>
+      <td>${r.cpc>0?'$'+r.cpc.toFixed(2):'-'}</td>
+      <td class="${r.sales>0?'green':''}">${r.sales>0?'$'+fmt(r.sales):'-'}</td>
+      <td>${r.acos>0?acosBadge(r.acos):'-'}</td>
+      <td>${r.orders?r.orders:'-'}</td>
+      <td>${r.cvr>0?pct(r.cvr):'-'}</td>
+      <td>${r.sv?r.sv.toLocaleString():'-'}</td>
+      <td>${r.ks||'-'}</td>
+      <td>${r.cpr||'-'}</td>
+      <td>${r.org||'-'}</td>
+    </tr>`).join('');
+}
+
+// ── FILTERS ────────────────────────────────────────────────────────────────
+function filterTopTerms() {
+  const q = document.getElementById('search-topterms').value.toLowerCase();
+  const filtered = allTopTerms.filter(r => r.kw.includes(q));
+  renderTopTerms(filtered);
+}
+function filterTracker() {
+  const q = document.getElementById('search-tracker').value.toLowerCase();
+  const filtered = masterRows.filter(r => r.kw.includes(q));
+  renderTracker(filtered);
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
+function showTab(tab) {
+  ['overview','topterms','tracker'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach((el,i) => {
+    el.classList.toggle('active', ['overview','topterms','tracker'][i] === tab);
+  });
+  document.querySelector('.page-title').textContent =
+    tab==='overview' ? 'Overview' : tab==='topterms' ? 'Top Search Terms' : 'Full Tracker';
+}
+
+// ── DOWNLOAD EXCEL ─────────────────────────────────────────────────────────
+function downloadExcel() {
+  if (!masterRows.length) return;
+  const wb = XLSX.utils.book_new();
+  const ws = {};
+
+  // ── Color helpers ──
+  const BLACK      = '1A1A2E';
+  const ORANGE     = 'E8501A';
+  const DARK_ORANGE= 'CC4400';
+  const PPC_DARK   = '1F2937';
+  const RANKS_DARK = 'CC4400';
+  const WHITE      = 'FFFFFF';
+  const LIGHT_GRAY = 'F3F4F6';
+  const HEADER_COL = '374151';
+
+  function cellStyle(bg, color, bold, sz, hAlign, wrapText) {
+    return {
+      font: { bold: !!bold, color: { rgb: color||WHITE }, sz: sz||9, name: 'Arial' },
+      fill: { patternType: 'solid', fgColor: { rgb: bg } },
+      alignment: { horizontal: hAlign||'center', vertical: 'center', wrapText: !!wrapText },
+      border: {
+        top:    { style:'thin', color:{rgb:'555555'} },
+        bottom: { style:'thin', color:{rgb:'555555'} },
+        left:   { style:'thin', color:{rgb:'555555'} },
+        right:  { style:'thin', color:{rgb:'555555'} }
+      }
+    };
+  }
+
+  // ── Helper to set cell ──
+  function setCell(ref, v, s, numFmt) {
+    ws[ref] = { v, s };
+    if (numFmt) ws[ref].z = numFmt;
+    if (typeof v === 'number') ws[ref].t = 'n';
+    else ws[ref].t = 's';
+  }
+
+  // ── Portfolio/date label ──
+  const portfolio = document.getElementById('portfolio-sel').value || 'All Portfolios';
+  const dateLabel = new Date().toLocaleDateString('en-US', {month:'short', year:'numeric'}) + ' Data';
+
+  // ── Row 1: Section title headers ──
+  // A1:C1 - Search Query Performance Tracker
+  setCell('A1', 'Search Query Performance Tracker', cellStyle(BLACK, WHITE, true, 11, 'center'), null);
+  // D1:M1 - Date Data (orange)
+  setCell('D1', dateLabel, cellStyle(ORANGE, WHITE, true, 11, 'center'), null);
+  // N1:V1 - PPC Performance
+  setCell('N1', 'PPC Performance', cellStyle(PPC_DARK, WHITE, true, 11, 'center'), null);
+  // W1:Z1 - Ranks
+  setCell('W1', 'Ranks', cellStyle(RANKS_DARK, WHITE, true, 11, 'center'), null);
+
+  // ── Row 2: Column headers ──
+  const headers = [
+    ['A','Customer Search Terms', BLACK],
+    ['B','SQS',          BLACK],
+    ['C','SQ VL',        BLACK],
+    ['D','Market CTR',   DARK_ORANGE],
+    ['E','My CTR',       DARK_ORANGE],
+    ['F','Market CVR',   DARK_ORANGE],
+    ['G','My CVR',       DARK_ORANGE],
+    ['H','Imp Market',   DARK_ORANGE],
+    ['I','Brand Imp',    DARK_ORANGE],
+    ['J','Market Clicks',DARK_ORANGE],
+    ['K','Brand Clicks', DARK_ORANGE],
+    ['L','Purchase Total',DARK_ORANGE],
+    ['M','Brand Purchase',DARK_ORANGE],
+    ['N','Impression',   HEADER_COL],
+    ['O','CLICKS',       HEADER_COL],
+    ['P','CTR',          HEADER_COL],
+    ['Q','Ad Spent',     HEADER_COL],
+    ['R','CPC',          HEADER_COL],
+    ['S','SALES',        HEADER_COL],
+    ['T','ACoS',         HEADER_COL],
+    ['U','ORDERS',       HEADER_COL],
+    ['V','CVR',          HEADER_COL],
+    ['W','SV',           DARK_ORANGE],
+    ['X','K-Sale',       DARK_ORANGE],
+    ['Y','CPR',          DARK_ORANGE],
+    ['Z','Organic',      DARK_ORANGE],
+  ];
+  headers.forEach(([col, label, bg]) => {
+    setCell(col+'2', label, cellStyle(bg, WHITE, true, 9, 'center', true), null);
+  });
+
+  // ── Data rows starting at row 3 ──
+  const PCT_FMT  = '0.00%';
+  const DOLLAR_FMT = '$#,##0.00';
+  const INT_FMT  = '#,##0';
+
+  masterRows.forEach((r, i) => {
+    const row = i + 3;
+    const bg  = i % 2 === 0 ? 'F3F4F6' : 'FFFFFF';
+    const txt = '1A1A2E';
+
+    function dc(col, v, numFmt) {
+      const ref = col + row;
+      ws[ref] = { v: v||0, t: typeof v === 'number' ? 'n' : 's',
+        s: cellStyle(bg, txt, false, 9, col==='A'?'left':'center'),
+        z: numFmt || 'General' };
+    }
+
+    dc('A', r.kw||'');       ws['A'+row].t = 's';
+    dc('B', r.sqs,    INT_FMT);
+    dc('C', r.sqvl,   INT_FMT);
+    dc('D', r.mktCtr, PCT_FMT);
+    dc('E', r.myCtr,  PCT_FMT);
+    dc('F', r.mktCvr, PCT_FMT);
+    dc('G', r.myCvr,  PCT_FMT);
+    dc('H', r.impMkt,   INT_FMT);
+    dc('I', r.brandImp, INT_FMT);
+    dc('J', r.mktClk,   INT_FMT);
+    dc('K', r.brandClk, INT_FMT);
+    dc('L', r.purchTot, INT_FMT);
+    dc('M', r.brandPur, INT_FMT);
+    dc('N', r.imp,    INT_FMT);
+    dc('O', r.clk,    INT_FMT);
+    dc('P', r.ctr,    PCT_FMT);
+    dc('Q', r.spend,  DOLLAR_FMT);
+    dc('R', r.cpc,    DOLLAR_FMT);
+    dc('S', r.sales,  DOLLAR_FMT);
+    dc('T', r.acos,   PCT_FMT);
+    dc('U', r.orders, INT_FMT);
+    dc('V', r.cvr,    PCT_FMT);
+    dc('W', r.sv,     INT_FMT);
+    dc('X', r.ks,     INT_FMT);
+    dc('Y', r.cpr,    INT_FMT);
+    dc('Z', r.org,    INT_FMT);
+  });
+
+  // ── Worksheet range ──
+  const lastRow = masterRows.length + 2;
+  ws['!ref'] = `A1:Z${lastRow}`;
+
+  // ── Merge cells for section headers (row 1) ──
+  ws['!merges'] = [
+    { s:{r:0,c:0},  e:{r:0,c:2}  },  // A1:C1
+    { s:{r:0,c:3},  e:{r:0,c:12} },  // D1:M1
+    { s:{r:0,c:13}, e:{r:0,c:21} },  // N1:V1
+    { s:{r:0,c:22}, e:{r:0,c:25} },  // W1:Z1
+  ];
+
+  // ── Freeze panes at D3 (keep rows 1-2 and cols A-C frozen) ──
+  ws['!freeze'] = { xSplit: 3, ySplit: 2 };
+
+  // ── Column widths ──
+  ws['!cols'] = [
+    {wch:38},{wch:7},{wch:9},
+    {wch:11},{wch:10},{wch:11},{wch:10},
+    {wch:11},{wch:10},{wch:12},{wch:12},{wch:13},{wch:13},
+    {wch:11},{wch:8},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8},
+    {wch:9},{wch:9},{wch:8},{wch:9}
+  ];
+
+  // ── Row heights ──
+  ws['!rows'] = [ {hpt:22}, {hpt:32} ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'SQP Tracker');
+  const fname = portfolio.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+  XLSX.writeFile(wb, `SQP_Tracker_${fname}.xlsx`);
+}
+
+function downloadCSV() {
+  if (!masterRows.length) return;
+  const rows = masterRows.map(r => [
+    r.kw, r.sqs, r.sqvl,
+    (r.mktCtr*100).toFixed(2)+'%', (r.myCtr*100).toFixed(2)+'%',
+    (r.mktCvr*100).toFixed(2)+'%', (r.myCvr*100).toFixed(2)+'%',
+    r.impMkt, r.brandImp, r.mktClk, r.brandClk, r.purchTot, r.brandPur,
+    r.imp, r.clk, (r.ctr*100).toFixed(2)+'%',
+    '$'+r.spend.toFixed(2), '$'+r.cpc.toFixed(2), '$'+r.sales.toFixed(2),
+    (r.acos*100).toFixed(2)+'%', r.orders, (r.cvr*100).toFixed(2)+'%',
+    r.sv, r.ks, r.cpr, r.org
+  ]);
+  const header = 'Customer Search Terms,SQS,SQ VL,Market CTR,My CTR,Market CVR,My CVR,Imp Market,Brand Imp,Market Clicks,Brand Clicks,Purchase Total,Brand Purchase,Impression,CLICKS,CTR,Ad Spent,CPC,SALES,ACoS,ORDERS,CVR,SV,K-Sale,CPR,Organic\n';
+  const csv = header + rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'SQP_Tracker.csv'; a.click();
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function fmt(n) { return parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtBig(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+function pct(n) { return (parseFloat(n||0)*100).toFixed(2) + '%'; }
+function acosBadge(v) {
+  const p = (v*100).toFixed(2)+'%';
+  if (v <= 0.3) return `<span class="acos-badge acos-good">${p}</span>`;
+  if (v <= 0.6) return `<span class="acos-badge acos-mid">${p}</span>`;
+  return `<span class="acos-badge acos-bad">${p}</span>`;
+}
+function showLoading() { document.getElementById('loading').classList.add('show'); }
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+</script>
+</body>
+</html>
